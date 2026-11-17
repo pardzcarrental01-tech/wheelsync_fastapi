@@ -99,7 +99,7 @@ class TokenOut(BaseModel):
 
 
 class AgeIn(BaseModel):
-    age: int = Field(ge=1, le=120)
+    age: int = Field(ge=25, le=120)
 
 
 class StaffCreateIn(BaseModel):
