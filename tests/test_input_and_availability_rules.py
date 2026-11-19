@@ -61,3 +61,19 @@ def test_unreleased_rental_stays_blocked_until_cleaning_and_verification_finish(
         released_at=None,
     )
     assert booking_interval(booking)[1] == datetime.max
+
+
+def test_active_rental_only_blocks_until_its_return_time():
+    booking = SimpleNamespace(
+        status=BookingStatus.accepted,
+        start_date=date(2026, 11, 19),
+        end_date=date(2026, 11, 20),
+        pickup_time=time(9, 0),
+        return_time=time(15, 0),
+        released_at=None,
+    )
+    starts_at, ends_at = booking_interval(booking)
+    assert ends_at == datetime(2026, 11, 20, 15, 0)
+    # Someone else can still take the car for the rest of the return day.
+    assert not _intervals_overlap((datetime(2026, 11, 20, 15, 0), datetime(2026, 11, 20, 21, 0)), (starts_at, ends_at))
+    assert _intervals_overlap((datetime(2026, 11, 20, 9, 0), datetime(2026, 11, 20, 21, 0)), (starts_at, ends_at))
