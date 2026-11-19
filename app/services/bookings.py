@@ -38,6 +38,14 @@ def _local_naive(value: datetime) -> datetime:
     return value.astimezone(zone).replace(tzinfo=None)
 
 
+def _scheduled_end(end_date: date, return_time: time | None) -> datetime:
+    """A rental occupies the car only until its chosen return time; the rest of that day stays open.
+    Without a return time the whole end date is treated as occupied."""
+    if return_time is None:
+        return datetime.combine(end_date + timedelta(days=1), time.min)
+    return datetime.combine(end_date, return_time)
+
+
 def booking_interval(booking: Booking) -> tuple[datetime, datetime]:
     """Local-time occupied interval; a returned car is free only after cleaning and verification."""
     starts_at = datetime.combine(booking.start_date, booking.pickup_time or time.min)
@@ -48,13 +56,13 @@ def booking_interval(booking: Booking) -> tuple[datetime, datetime]:
     elif booking.status == BookingStatus.ongoing and booking.end_date < today_local():
         ends_at = datetime.max
     else:
-        ends_at = datetime.combine(booking.end_date + timedelta(days=1), time.min)
+        ends_at = _scheduled_end(booking.end_date, booking.return_time)
     return starts_at, ends_at
 
 
 def requested_interval(data: BookingCreate) -> tuple[datetime, datetime]:
     starts_at = datetime.combine(data.start_date, data.pickup_time or time.min)
-    ends_at = datetime.combine(data.end_date + timedelta(days=1), time.min)
+    ends_at = _scheduled_end(data.end_date, data.return_time)
     return starts_at, ends_at
 
 
