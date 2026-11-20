@@ -3,7 +3,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import BlacklistRecord, Profile
+from ..models import BlacklistRecord, Profile, UserRole
 
 # Pardz's printed blacklist (area, source, name, reason), in the list's order. Each page is loaded once
 # (services/company_data.py); after that the admin manages the list on the Blacklist page.
@@ -164,6 +164,18 @@ def id_blacklist_record(db: Session, customer: Profile) -> BlacklistRecord | Non
     if not ids:
         return None
     return next((r for r in _records_with_ids(db) if normalize_id(r.id_number) in ids), None)
+
+
+def duplicate_id_account(db: Session, customer: Profile) -> Profile | None:
+    """An older customer account that uses one of this customer's ID numbers. The newer account can't book."""
+    ids = customer_ids(customer)
+    if not ids:
+        return None
+    others = db.scalars(select(Profile).where(Profile.role == UserRole.customer, Profile.id != customer.id)).all()
+    return next(
+        (other for other in others if ids & customer_ids(other) and other.created_at < customer.created_at),
+        None,
+    )
 
 
 def blacklist_matches(db: Session, customers: list[Profile]) -> dict:
