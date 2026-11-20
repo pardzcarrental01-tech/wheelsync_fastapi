@@ -52,12 +52,10 @@ def booking_interval(booking: Booking) -> tuple[datetime, datetime]:
     if booking.status == BookingStatus.completed and booking.released_at is not None:
         ends_at = _local_naive(booking.released_at)
     elif booking.status in (BookingStatus.completed, BookingStatus.ongoing):
-        # Out on rental, or back but not yet released: blocked through its scheduled return, and at least until
-        # the end of today (cleaning). Later dates stay bookable. Released cars use released_at above.
-        ends_at = max(
-            _scheduled_end(booking.end_date, booking.return_time),
-            datetime.combine(today_local() + timedelta(days=1), time.min),
-        )
+        # Out, or back but not yet cleaned and released: blocked through the whole return day (or today, if later)
+        # until the car is released. Released cars use released_at above.
+        last_day = max(booking.end_date, today_local())
+        ends_at = datetime.combine(last_day + timedelta(days=1), time.min)
     else:
         ends_at = _scheduled_end(booking.end_date, booking.return_time)
     return starts_at, ends_at
