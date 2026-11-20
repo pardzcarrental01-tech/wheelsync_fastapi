@@ -11,6 +11,8 @@ from ..schemas import AgeIn, ProfileOut
 from ..services import notifications as notes
 from ..services.email import EmailDeliveryFailed, EmailNotConfigured, send_notification_email
 from ..services import storage
+from ..services.blacklist import duplicate_id_account, id_blacklist_record
+from ..services.bookings import BLACKLISTED_ID_MESSAGE
 from ..services.identifiers import normalize_government_id
 
 router = APIRouter(prefix="/me", tags=["customer profile"])
@@ -69,11 +71,17 @@ def submit_requirements(
             storage.delete_file(storage.DOCUMENT_BUCKET, path)
         raise
 
+    user.id_type, user.id_number = id_type.strip(), id_number.strip()
+    user.second_id_type, user.second_id_number = second_id_type.strip(), second_id_number.strip()
+    # Block here, on the requirements step: an ID already used by another account, or on the blacklist, can't continue.
+    if duplicate_id_account(db, user) is not None or id_blacklist_record(db, user) is not None:
+        db.rollback()
+        for path in new_paths.values():
+            storage.delete_file(storage.DOCUMENT_BUCKET, path)
+        raise HTTPException(status.HTTP_403_FORBIDDEN, BLACKLISTED_ID_MESSAGE)
     for column, path in new_paths.items():
         storage.delete_file(storage.DOCUMENT_BUCKET, getattr(user, column))  # replaced document
         setattr(user, column, path)
-    user.id_type, user.id_number = id_type.strip(), id_number.strip()
-    user.second_id_type, user.second_id_number = second_id_type.strip(), second_id_number.strip()
     user.address = address.strip() or None
     user.verification_status = "pending"
     user.verification_notes = None
