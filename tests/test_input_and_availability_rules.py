@@ -24,12 +24,27 @@ def test_philippine_mobile_numbers_are_normalized(value, expected):
 def test_phone_and_government_id_lengths_are_enforced():
     with pytest.raises(ValueError):
         normalize_ph_mobile("+63 917 123 456")
-    assert normalize_government_id("Passport", "ab1234567") == "AB1234567"
-    assert normalize_government_id("National ID", "123456789012") == "123456789012"
-    with pytest.raises(ValueError):
-        normalize_government_id("Passport", "A123")
-    with pytest.raises(ValueError):
-        normalize_government_id("National ID", "1234-5678-9012")
+    assert normalize_government_id("Passport", "p1234567a") == "P1234567A"
+    assert normalize_government_id("Passport", "eb1234567") == "EB1234567"
+    # National ID: the 16-digit PhilSys Card Number (PCN), stored as printed on the card
+    assert normalize_government_id("National ID", "1234567890123456") == "1234-5678-9012-3456"
+    assert normalize_government_id("UMID", "011112345678") == "0111-1234567-8"
+    assert normalize_government_id("SSS ID", "3412345678") == "34-1234567-8"
+    assert normalize_government_id("TIN ID", "123456789") == "123-456-789"
+    assert normalize_government_id("TIN ID", "123456789000") == "123-456-789-000"
+    assert normalize_government_id("PhilHealth ID", "123456789012") == "12-345678901-2"
+    assert normalize_government_id("Pag-IBIG ID", "123456789012") == "1234-5678-9012"
+    assert normalize_government_id("PRC ID", "0123456") == "0123456"
+    for id_type, bad in [
+        ("Passport", "A123"),
+        ("National ID", "123456789012"),  # the 12-digit PSN is not accepted
+        ("UMID", "12345"),
+        ("SSS ID", "12345678901"),
+        ("TIN ID", "1234567890"),
+        ("PRC ID", "12345678"),
+    ]:
+        with pytest.raises(ValueError):
+            normalize_government_id(id_type, bad)
 
 
 def test_return_date_opens_at_cleaning_and_verification_time():
