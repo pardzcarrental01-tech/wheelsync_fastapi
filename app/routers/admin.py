@@ -375,16 +375,12 @@ def dashboard(year: int | None = Query(default=None, ge=2000, le=2100), db: Sess
             .where(Profile.role == UserRole.customer, Profile.is_imported.is_(False), Profile.created_at >= since)
         ) or 0
 
-    # Current renters: customers with a car out right now (ongoing bookings + walk-ins recorded for today).
-    ongoing = db.scalars(
-        select(Booking.customer_id).where(Booking.status == BookingStatus.ongoing, real).distinct()
-    ).all()
-    walk_ins = db.scalars(
-        select(WalkInTransaction.customer_name)
-        .where(WalkInTransaction.start_date <= today, WalkInTransaction.end_date >= today)
-        .distinct()
-    ).all()
-    current_renters = len(ongoing) + len(walk_ins)
+    # Current renters: customers whose booking is ongoing right now, that is, the staff has started the rental
+    # and the car is out with the customer. Pending, accepted (not yet released), completed and cancelled bookings
+    # do not count, and neither do the entries on the Transactions page: those are payment records, not bookings.
+    current_renters = db.scalar(
+        select(func.count(func.distinct(Booking.customer_id))).where(Booking.status == BookingStatus.ongoing, real)
+    ) or 0
 
     customers_breakdown = {
         "today": signed_up_since(today),
