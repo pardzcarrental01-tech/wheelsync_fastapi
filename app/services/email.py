@@ -200,8 +200,8 @@ def send_booking_approved_email(booking: Booking) -> str:
 
     name = customer.full_name or "Customer"
     vehicle = f"{booking.vehicle.make or 'Vehicle'} {booking.vehicle.model or ''}".strip()
-    pickup = f" at {booking.pickup_time.strftime('%H:%M')}" if booking.pickup_time else ""
-    ret = f" at {booking.return_time.strftime('%H:%M')}" if booking.return_time else ""
+    pickup = f" at {booking.pickup_time.strftime('%I:%M %p').lstrip('0')}" if booking.pickup_time else ""
+    ret = f" at {booking.return_time.strftime('%I:%M %p').lstrip('0')}" if booking.return_time else ""
     schedule = f"{booking.start_date}{pickup} to {booking.end_date}{ret}"
     address = settings.rental_address
 
