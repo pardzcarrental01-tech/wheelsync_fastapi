@@ -193,17 +193,20 @@ def edit_customer(customer_id: str, data: CustomerAdminEdit, admin: Profile = De
     """Correct a customer's details or ID information (e.g. they brought a different ID to the office)."""
     customer = _customer_or_404(db, customer_id)
     changed = []
-    for key, value in data.model_dump(exclude_unset=True).items():
+    edited = data.model_dump(exclude_unset=True)
+    for key, value in edited.items():
         value = value.strip() or None if isinstance(value, str) else value
         if key == "full_name" and not value:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "The customer's name can't be empty.")
         if value != getattr(customer, key):
             changed.append(f"{key.replace('_', ' ')} {getattr(customer, key) or '-'} -> {value or '-'}")
             setattr(customer, key, value)
+    # Only an ID the admin touched is checked, so a customer saved under older rules can still be edited
+    # (for example, a name correction) without retyping both IDs.
     try:
-        if customer.id_number:
+        if customer.id_number and ("id_number" in edited or "id_type" in edited):
             customer.id_number = normalize_government_id(customer.id_type, customer.id_number)
-        if customer.second_id_number:
+        if customer.second_id_number and ("second_id_number" in edited or "second_id_type" in edited):
             customer.second_id_number = normalize_government_id(customer.second_id_type, customer.second_id_number)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
