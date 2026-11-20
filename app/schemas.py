@@ -462,9 +462,11 @@ class CustomerAdminEdit(BaseModel):
 
     @model_validator(mode="after")
     def _valid_ids(self):
-        if self.id_number is not None:
+        # Checked here only when the type comes with the number; otherwise the router checks the number
+        # against the type already saved for the customer.
+        if self.id_number is not None and self.id_type is not None:
             self.id_number = normalize_government_id(self.id_type, self.id_number)
-        if self.second_id_number is not None:
+        if self.second_id_number is not None and self.second_id_type is not None:
             self.second_id_number = normalize_government_id(self.second_id_type, self.second_id_number)
         return self
 
