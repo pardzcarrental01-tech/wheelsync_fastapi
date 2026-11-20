@@ -1,10 +1,30 @@
 import uuid
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..config import get_settings
 from ..models import Booking, BookingStatus, Inspection, InspectionType, Notification, Profile, UserRole
 from ..realtime import hub
+
+
+def clock(value: time | None) -> str:
+    """12-hour time with AM/PM, e.g. 9:00 PM."""
+    return value.strftime("%I:%M %p").lstrip("0") if value else ""
+
+
+def available_from_text(moment: datetime | None) -> str:
+    """When a released vehicle can be rented again, in local 12-hour time: 'today at 2:35 PM' or 'Nov 22 at 2:35 PM'."""
+    if moment is None:
+        return ""
+    zone = ZoneInfo(get_settings().timezone)
+    local = moment.astimezone(zone) if moment.tzinfo else moment
+    when = clock(local.time())
+    if local.date() == datetime.now(zone).date():
+        return f"today at {when}"
+    return f"{local.strftime('%b')} {local.day} at {when}"
 
 
 def add_notification(
@@ -37,6 +57,11 @@ def notify_booking_status_change(db: Session, booking: Booking, rental_address: 
             f"Please visit Pardz Car Rental at {rental_address}. "
             "Bring one physical ID for vehicle release; it will be returned to you when the vehicle is returned."
         )
+        if booking.pickup_time or booking.return_time:
+            body += (
+                f" Pickup: {booking.start_date}{' at ' + clock(booking.pickup_time) if booking.pickup_time else ''}."
+                f" Return: {booking.end_date}{' at ' + clock(booking.return_time) if booking.return_time else ''}."
+            )
     elif booking.status == BookingStatus.rejected and booking.rejection_reason:
         kind = "booking_rejected"
         title = "Booking needs changes"
@@ -105,7 +130,18 @@ def notify_inspection_verified(db: Session, booking: Booking, inspection: Inspec
         f"The admin verified your {kind} inspection of the {_vehicle_label(booking)}.",
         kind="inspection", booking_id=booking.id,
     )
-    return [inspection.staff_id]
+    users = [inspection.staff_id]
+    if inspection.type == InspectionType.post_rental and booking.released_at is not None:
+        admins = admin_ids(db)
+        for admin_id in admins:
+            add_notification(
+                db, admin_id, "Vehicle available again",
+                f"The {_vehicle_label(booking)} is cleaned, verified and available for booking from "
+                f"{available_from_text(booking.released_at)}.",
+                kind="cleaning", booking_id=booking.id,
+            )
+        users += admins
+    return users
 
 
 def notify_vehicle_returned(db: Session, booking: Booking) -> list[uuid.UUID]:
@@ -147,7 +183,8 @@ def notify_cleaning_unassigned(db: Session, booking: Booking, staff_id: uuid.UUI
 
 def notify_cleaning_done(db: Session, booking: Booking, cleaner: Profile, released: bool) -> list[uuid.UUID]:
     status_line = (
-        "The vehicle is available for booking again."
+        f"The vehicle is available for booking again from {available_from_text(booking.released_at)}."
+        if released and booking.released_at else "The vehicle is available for booking again."
         if released else "Verify the post-rental inspection to put the vehicle back on the fleet."
     )
     admins = admin_ids(db)
