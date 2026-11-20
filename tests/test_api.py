@@ -61,7 +61,7 @@ def submit_requirements(client, token):
     files["extra_document_2"] = ("extra-2.png", io.BytesIO(PNG), "image/png")
     return client.post(
         "/me/verification", headers=auth(token), files=files,
-        data={"id_type": "Passport", "id_number": "P123", "second_id_type": "National ID", "second_id_number": "N456", "address": "Sample Street"},
+        data={"id_type": "Passport", "id_number": "P1234567A", "second_id_type": "Postal ID", "second_id_number": "N456", "address": "Sample Street"},
     )
 
 
@@ -662,7 +662,7 @@ def test_verification_review_and_documents(client, world):
     assert any("ID is blurry." in n["body"] for n in client.get("/notifications", headers=auth(cust)).json())
 
     # re-submit keeps old docs when files are omitted
-    r = client.post("/me/verification", headers=auth(cust), data={"id_type": "Passport", "id_number": "P9", "second_id_type": "NID", "second_id_number": "N9", "address": "Updated Street"})
+    r = client.post("/me/verification", headers=auth(cust), data={"id_type": "Passport", "id_number": "P7654321B", "second_id_type": "National ID", "second_id_number": "1234 5678 9012 3456", "address": "Updated Street"})
     assert r.status_code == 200 and r.json()["verification_status"] == "pending" and r.json()["verification_notes"] is None
     r = client.post(
         f"/admin/customers/{cid}/verification",
@@ -911,7 +911,7 @@ def test_blacklist_records_flag_matching_customers(client, world):
 
 def test_blacklisted_id_number_cannot_book(client, world):
     admin = auth(world["admin"])
-    verify_customer(client, world)  # IDs P123 and N456
+    verify_customer(client, world)  # IDs P1234567A and N456
     pending = make_booking(client, world, 1, 2)
     assert pending.status_code == 201, pending.text
 
